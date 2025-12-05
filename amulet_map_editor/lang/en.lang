@@ -83,16 +83,28 @@ menu_bar.help.menu_name=&Help
 ## The start screen
 main_menu.tab_name=Main Menu
 main_menu.open_world=Open World
+main_menu.support=Support Amulet
 main_menu.user_manual=User Manual
 main_menu.bug_tracker=Bug Tracker
 main_menu.discord=Amulet Discord
 main_menu.our_sponsors=Our Sponsors
-main_menu.sponsor_link=(Sponsor us to get your name here)
+main_menu.sponsor_link=(Click here to support us on Github and get your name here)
 
 # Language Select
 language_select.title=Language Select
 language_select.help=Select the language to use in Amulet from the list below.
 language_select.contribute=If you want to fix or add translations click here.
+
+# Support Dialog
+support_dialog.title=I Need Your Support!
+support_dialog.support_button=I am contributing to Amulet.
+support_dialog.ignore_button_wait=Continue without contributing. Wait {t} seconds
+support_dialog.ignore_button=Continue without contributing.
+support_dialog.content_1=Pathway Studios have been funding the development of Amulet for the past 6 years but have decided to stop funding development from 2026.
+support_dialog.content_2=Who am I?\nI am James. You may know me as gentlegiantJGC.\nAmulet has been my job since 2019 but to continue I need financial support.\nAny contribution, no matter how small, is greatly appreciated.\nWithout your support, development and maintenance of Amulet will stop and Amulet will not be able to open worlds from new versions.
+support_dialog.github_sponsor=Support Amulet on Github
+support_dialog.paypal_sponsor=Support Amulet on Paypal
+support_dialog.content_3=The future of Amulet\nFor the past two years I have been rewriting Amulet from the ground up.\nMost of the libraries are now written in C++ for improved speed and parallelisation and the new application uses Qt to allow more control over the user interface.\nI still have a way to go until the rewrite can replace this version of Amulet but experimental versions of the rewrite should be out soon.
 
 # Warning Dialog
 warning_dialog.title=Welcome to Amulet
