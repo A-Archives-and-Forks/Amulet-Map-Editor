@@ -28,15 +28,28 @@ class SimpleOperationPanel(wx.Panel, DefaultOperationUI):
     def _add_run_button(self, label="Run Operation"):
         self._run_button = wx.Button(self, label=label)
         self._run_button.Bind(wx.EVT_BUTTON, self._run_operation)
-        self._sizer.Add(self._run_button, 0, wx.ALL | wx.ALIGN_CENTRE_HORIZONTAL, 5)
+        self._sizer.Add(
+            self._run_button, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM | wx.EXPAND, 5
+        )
         self.Layout()
 
     def _run_operation(self, _):
+        if not self._pre_operation():
+            return
         self.canvas.run_operation(
             lambda: self._operation(
                 self.world, self.canvas.dimension, self.canvas.selection.selection_group
             )
         )
+
+    def _pre_operation(self) -> bool:
+        """
+        Run code before running the operation.
+        This code is not included in the operation time.
+        This can be used to get extra options e.g. a save location.
+        Return True to continue with the operation.
+        """
+        return True
 
     def _operation(
         self, world: "BaseLevel", dimension: Dimension, selection: SelectionGroup
