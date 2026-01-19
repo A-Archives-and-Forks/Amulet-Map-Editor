@@ -4,7 +4,7 @@
 
 from PyInstaller.utils.hooks import collect_submodules
 
-from typing import Dict, Tuple, Set
+from typing import Dict, Tuple, Set, TYPE_CHECKING
 import sys
 import os
 import glob
@@ -20,6 +20,13 @@ import amulet_nbt
 import PyMCTranslate
 import minecraft_model_reader
 import amulet_map_editor
+
+if TYPE_CHECKING:
+    from PyInstaller.building.build_main import Analysis
+    from PyInstaller.building.datastruct import Tree
+    from PyInstaller.building.api import PYZ, EXE, COLLECT
+    import PyInstaller.building.osx
+    from PyInstaller.building.osx import BUNDLE
 
 sys.modules["FixTk"] = None
 
@@ -40,7 +47,10 @@ hidden.extend(collect_submodules("OpenGL.GL.shaders"))
 
 
 a = Analysis(
-    [os.path.join(AMULET_MAP_EDITOR, "__main__.py")],
+    [
+        os.path.join(AMULET_MAP_EDITOR, "__main__.py"),
+        os.path.join(AMULET_MAP_EDITOR, "__main_debug__.py"),
+    ],
     binaries=[],
     datas=[],
     hiddenimports=hidden,
@@ -97,6 +107,7 @@ sys.stdout.flush()  # fix the log being out of order
 pyz = PYZ(a.pure, a.zipped_data)
 exe = EXE(
     pyz,
+    a.scripts[:-1],
     a.scripts,
     [],
     exclude_binaries=True,
@@ -108,8 +119,22 @@ exe = EXE(
     console=os.name == "nt", # Only show the console on windows
     icon="icon.ico",
 )
+exe_debug = EXE(
+    pyz,
+    a.scripts[:-2] + a.scripts[-1:],
+    [],
+    exclude_binaries=True,
+    name="amulet_app_debug",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    console=os.name == "nt", # Only show the console on windows
+    icon="icon.ico",
+)
 coll = COLLECT(
     exe,
+    exe_debug,
     a.binaries,
     a.zipfiles,
     a.datas,

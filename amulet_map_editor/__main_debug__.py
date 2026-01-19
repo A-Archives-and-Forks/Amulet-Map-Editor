@@ -62,8 +62,6 @@ def _init_log():
         ):
             os.remove(path)
 
-    debug = "--amulet-debug" in sys.argv
-
     file_handler = logging.FileHandler(
         os.path.join(logs_path, f"amulet_{os.getpid()}.log"),
         "w",
@@ -75,15 +73,11 @@ def _init_log():
 
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(
-        logging.Formatter(
-            "%(levelname)s - %(name)s - %(message)s"
-            if debug
-            else "%(levelname)s - %(message)s"
-        )
+        logging.Formatter("%(levelname)s - %(name)s - %(message)s")
     )
 
     logging.basicConfig(
-        level=logging.DEBUG if debug else logging.INFO,
+        level=logging.DEBUG,
         handlers=[file_handler, console_handler],
         force=True,
     )
