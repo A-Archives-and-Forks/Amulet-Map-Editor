@@ -42,6 +42,10 @@ try:
     import time
     import wx
     import platformdirs
+    from typing import NoReturn
+    from types import TracebackType
+    import threading
+    import faulthandler
 
     if sys.platform == "linux" and wx.VERSION >= (4, 1, 1):
         # bug 247
@@ -62,11 +66,13 @@ def _init_log():
         ):
             os.remove(path)
 
-    file_handler = logging.FileHandler(
+    log_file = open(
         os.path.join(logs_path, f"amulet_{os.getpid()}.log"),
         "w",
         encoding="utf-8",
     )
+
+    file_handler = logging.StreamHandler(log_file)
     file_handler.setFormatter(
         logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
     )
@@ -82,8 +88,29 @@ def _init_log():
         force=True,
     )
 
+    log = logging.getLogger(__name__)
 
-def main():
+    def error_handler(
+        exc_type: type[BaseException],
+        exc_value: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        if exc_value is None:
+            return
+        log.error("Unhandled exception", exc_info=(exc_type, exc_value, exc_tb))
+
+    sys.excepthook = error_handler
+
+    def thread_error_handler(args: threading.ExceptHookArgs) -> None:
+        error_handler(args.exc_type, args.exc_value, args.exc_traceback)
+
+    threading.excepthook = thread_error_handler
+
+    # When running via pythonw the stderr is None so log directly to the log file
+    faulthandler.enable(log_file)
+
+
+def main() -> NoReturn:
     try:
         # Initialise default paths.
         data_dir = platformdirs.user_data_dir("AmuletMapEditor", "AmuletTeam")
@@ -100,7 +127,27 @@ def main():
         )
 
         _init_log()
+        log = logging.getLogger(__name__)
+        log.debug("Importing numpy")
+        import numpy
+
+        log.debug("Importing amulet_nbt")
+        import amulet_nbt
+
+        log.debug("Importing leveldb")
+        import leveldb
+
+        log.debug("Importing PyMCTranslate and amulet")
+        import PyMCTranslate
+        import amulet
+
+        log.debug("Importing minecraft_model_reader")
+        import minecraft_model_reader
+
+        log.debug("Importing amulet_map_editor")
         from amulet_map_editor.api.framework import AmuletApp
+
+        log.debug("Finished importing")
 
     except Exception as e:
         _on_error(e)
@@ -109,7 +156,6 @@ def main():
             app = AmuletApp(0)
             app.MainLoop()
         except Exception as e:
-            log = logging.getLogger(__name__)
             log.critical(
                 f"Amulet Crashed. Sorry about that. Please report it to a developer if you think this is an issue. \n{traceback.format_exc()}"
             )
