@@ -307,7 +307,9 @@ class BlockSelectionBehaviour(PointerBehaviour):
             return (0, 0, 0), (0, 0, 0)
         else:
             p1, p2 = self._get_active_points()
-            return tuple(p1[0].tolist()), tuple(p2[0].tolist())
+            x1, y1, z1 = p1[0].tolist()
+            x2, y2, z2 = p2[0].tolist()
+            return (x1, y1, z1), (x2, y2, z2)
 
     @active_block_positions.setter
     def active_block_positions(
@@ -458,7 +460,10 @@ class BlockSelectionBehaviour(PointerBehaviour):
     ) -> Tuple[PointCoordinates, NPVector3, SelectionGroup, Optional[int], float]:
         camera = self.canvas.camera.location
         look_vector = self.look_vector()
-        return (camera, look_vector) + self._get_box_hit_data(camera, look_vector)
+        selection_group, box_index, max_distance = self._get_box_hit_data(
+            camera, look_vector
+        )
+        return camera, look_vector, selection_group, box_index, max_distance
 
     def _get_box_hit_data(
         self, camera: PointCoordinates, look_vector: NPVector3
