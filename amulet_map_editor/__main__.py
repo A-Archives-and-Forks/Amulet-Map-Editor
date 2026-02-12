@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 
-def _on_error(e):
+def _log_error(e) -> None:
     """Code to handle errors"""
     try:
         import traceback
@@ -12,22 +12,20 @@ def _on_error(e):
         # Something has gone seriously wrong
         print(e)
         print("Failed to import requirements. Check that you extracted correctly.")
-        input("Press ENTER to continue.")
     else:
-        err = "\n".join(
-            [traceback.format_exc()]
-            + ["Failed to import requirements. Check that you extracted correctly."]
-            * isinstance(e, ImportError)
-            + [str(e)]
-        )
+        msg_lines = [traceback.format_exc()]
+        if isinstance(e, ImportError):
+            msg_lines.append(
+                "Failed to import requirements. Check that you extracted correctly."
+            )
+        msg_lines.append(str(e))
+        err = "\n".join(msg_lines)
         print(err)
         try:
             with open("crash.log", "w") as f:
                 f.write(err)
         except OSError:
             pass
-        input("Press ENTER to continue.")
-        sys.exit(1)
 
 
 try:
@@ -46,27 +44,28 @@ try:
     from types import TracebackType
     import threading
     import faulthandler
-
-    if sys.platform == "linux" and wx.VERSION >= (4, 1, 1):
-        # bug 247
-        os.environ["PYOPENGL_PLATFORM"] = "egl"
+    import subprocess
+    import multiprocessing
+    import amulet_faulthandler
 except Exception as e_:
-    _on_error(e_)
+    _log_error(e_)
+    input("Press ENTER to continue.")
+    sys.exit(1)
 
 
-def _init_log():
+def _init_log() -> logging.Logger:
     logs_path = os.environ["LOG_DIR"]
     # set up handlers
     os.makedirs(logs_path, exist_ok=True)
     # remove all log files older than a week
-    for path in glob.glob(os.path.join(glob.escape(logs_path), "*.log")):
+    for path in glob.glob(os.path.join(glob.escape(logs_path), "*")):
         if (
             os.path.isfile(path)
             and os.path.getmtime(path) < time.time() - 3600 * 24 * 7
         ):
             os.remove(path)
 
-    debug = "--amulet-debug" in sys.argv
+    debug = "debug" in os.path.basename(sys.executable) or "--amulet-debug" in sys.argv
 
     log_file = open(
         os.path.join(logs_path, f"amulet_{os.getpid()}.log"),
@@ -115,25 +114,36 @@ def _init_log():
     # When running via pythonw the stderr is None so log directly to the log file
     faulthandler.enable(log_file)
 
+    amulet_faulthandler.install(
+        os.path.join(logs_path, f"amulet_{os.getpid()}.dmp"), debug
+    )
 
-def main() -> NoReturn:
+    return log
+
+
+def _app_main() -> int:
+    if sys.platform == "linux" and wx.VERSION >= (4, 1, 1):
+        # bug 247
+        os.environ["PYOPENGL_PLATFORM"] = "egl"
+        os.environ["GDK_BACKEND"] = "x11"
+
+    # Initialise default paths.
+    data_dir = platformdirs.user_data_dir("AmuletMapEditor", "AmuletTeam")
+    os.environ.setdefault("DATA_DIR", data_dir)
+    config_dir = platformdirs.user_config_dir("AmuletMapEditor", "AmuletTeam")
+    if config_dir == data_dir:
+        config_dir = os.path.join(data_dir, "Config")
+    os.environ.setdefault("CONFIG_DIR", config_dir)
+    os.environ.setdefault(
+        "CACHE_DIR", platformdirs.user_cache_dir("AmuletMapEditor", "AmuletTeam")
+    )
+    os.environ.setdefault(
+        "LOG_DIR", platformdirs.user_log_dir("AmuletMapEditor", "AmuletTeam")
+    )
+
+    log = _init_log()
+
     try:
-        # Initialise default paths.
-        data_dir = platformdirs.user_data_dir("AmuletMapEditor", "AmuletTeam")
-        os.environ.setdefault("DATA_DIR", data_dir)
-        config_dir = platformdirs.user_config_dir("AmuletMapEditor", "AmuletTeam")
-        if config_dir == data_dir:
-            config_dir = os.path.join(data_dir, "Config")
-        os.environ.setdefault("CONFIG_DIR", config_dir)
-        os.environ.setdefault(
-            "CACHE_DIR", platformdirs.user_cache_dir("AmuletMapEditor", "AmuletTeam")
-        )
-        os.environ.setdefault(
-            "LOG_DIR", platformdirs.user_log_dir("AmuletMapEditor", "AmuletTeam")
-        )
-
-        _init_log()
-        log = logging.getLogger(__name__)
         log.debug("Importing numpy")
         import numpy
 
@@ -155,19 +165,49 @@ def main() -> NoReturn:
 
         log.debug("Finished importing")
 
+        app = AmuletApp(0)
+        app.MainLoop()
     except Exception as e:
-        _on_error(e)
-    else:
-        try:
-            app = AmuletApp(0)
-            app.MainLoop()
-        except Exception as e:
-            log.critical(
-                f"Amulet Crashed. Sorry about that. Please report it to a developer if you think this is an issue. \n{traceback.format_exc()}"
-            )
-            input("Press ENTER to continue.")
+        log.critical(
+            f"Amulet Crashed. Please report it to a developer. \n{traceback.format_exc()}"
+        )
+        return 1
+    return 0
 
-    sys.exit(0)
+
+def main() -> NoReturn:
+    is_launcher = False
+    try:
+        multiprocessing.freeze_support()
+        is_launcher = "--amulet-main" not in sys.argv
+        if is_launcher:
+            if getattr(sys, "frozen", False):
+                args = [sys.executable, "--amulet-main"] + sys.argv[1:]
+            else:
+                args = [sys.executable, __file__, "--amulet-main"] + sys.argv[1:]
+            exit_code = subprocess.run(args).returncode
+        else:
+            exit_code = _app_main()
+    except Exception as e:
+        _log_error(e)
+        exit_code = 1
+
+    if is_launcher and exit_code:
+        print(f"Application crashed with exit code {exit_code} (0x{exit_code:0X})")
+        print("Please report this issue to a developer.")
+        print("Attach the logs in the opened directory with your report.")
+        log_dir = os.environ.get("LOG_DIR") or platformdirs.user_log_dir(
+            "AmuletMapEditor", "AmuletTeam"
+        )
+        if sys.platform == "win32":
+            os.startfile(log_dir)
+        elif sys.platform == "darwin":
+            subprocess.run(["open", log_dir])
+        else:
+            subprocess.run(["xdg-open", log_dir])
+        if getattr(sys, "frozen", False) and sys.stdin is not None:
+            input(f"Press ENTER to continue.")
+    sys.exit(bool(exit_code))
 
 
 if __name__ == "__main__":

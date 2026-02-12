@@ -47,10 +47,7 @@ hidden.extend(collect_submodules("OpenGL.GL.shaders"))
 
 
 a = Analysis(
-    [
-        os.path.join(AMULET_MAP_EDITOR, "__main__.py"),
-        os.path.join(AMULET_MAP_EDITOR, "__main_debug__.py"),
-    ],
+    [os.path.join(AMULET_MAP_EDITOR, "__main__.py")],
     binaries=[],
     datas=[],
     hiddenimports=hidden,
@@ -107,9 +104,7 @@ sys.stdout.flush()  # fix the log being out of order
 pyz = PYZ(a.pure, a.zipped_data)
 exe = EXE(
     pyz,
-    a.scripts[:-1],
     a.scripts,
-    [],
     exclude_binaries=True,
     name="amulet_app",
     debug=False,
@@ -118,11 +113,11 @@ exe = EXE(
     upx=True,
     console=os.name == "nt", # Only show the console on windows
     icon="icon.ico",
+    contents_directory="lib"
 )
 exe_debug = EXE(
     pyz,
-    a.scripts[:-2] + a.scripts[-1:],
-    [],
+    a.scripts,
     exclude_binaries=True,
     name="amulet_app_debug",
     debug=False,
@@ -131,6 +126,7 @@ exe_debug = EXE(
     upx=True,
     console=os.name == "nt", # Only show the console on windows
     icon="icon.ico",
+    contents_directory="lib"
 )
 coll = COLLECT(
     exe,
