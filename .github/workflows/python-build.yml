@@ -18,7 +18,9 @@ jobs:
       fail-fast: false
       matrix:
         cfg:
-        - {os: windows-latest, python-version: '3.11', architecture: x64}
+        - {os: windows-2025, python-version: '3.11', architecture: x64}
+        - {os: macos-15-intel, python-version: '3.11', architecture: x64}
+        - {os: macos-15, python-version: '3.11', architecture: arm64}
         - {os: ubuntu-24.04, python-version: '3.11', architecture: x64}
 
     steps:
@@ -64,7 +66,35 @@ jobs:
         python -m build
         python -m pip install dist/amulet_map_editor-*.whl --upgrade
 
+    - name: MacOS - Store Credentials
+      if: runner.os == 'macOS'
+      run: |
+        xcrun notarytool store-credentials \
+          "notary-profile" \
+          --apple-id "${{ secrets.APPLE_ID }}" \
+          --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+          --password "${{ secrets.APPLE_PASSWORD }}"
+
+    - name: MacOS - Import Developer ID Certificate
+      if: runner.os == 'macOS'
+      run: |
+        CERTIFICATE_PATH=$RUNNER_TEMP/developer_id.p12
+        KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+
+        echo -n "${{ secrets.APPLE_P12_BASE64 }}" | base64 --decode -o "$CERTIFICATE_PATH"
+
+        security create-keychain -p "${{ secrets.APPLE_KEYCHAIN_PASSWORD }}" "$KEYCHAIN_PATH"
+        security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+        security unlock-keychain -p "${{ secrets.APPLE_KEYCHAIN_PASSWORD }}" "$KEYCHAIN_PATH"
+
+        security import "$CERTIFICATE_PATH" -P "${{ secrets.APPLE_P12_PASSWORD }}" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+        security set-key-partition-list -S apple-tool:,apple: -k "${{ secrets.APPLE_KEYCHAIN_PASSWORD }}" "$KEYCHAIN_PATH"
+        security list-keychain -d user -s "$KEYCHAIN_PATH"
+        security default-keychain -s "$KEYCHAIN_PATH"
+
     - name: PyInstaller build
+      env:
+        APPLE_CODESIGN_IDENTITY: ${{ secrets.APPLE_CODESIGN_IDENTITY }}
       run: |
         python -m PyInstaller -y --distpath ./installer/dist installer/Amulet.spec
 
@@ -82,6 +112,36 @@ jobs:
         ./azuresigntool.exe sign -kvu "${{ secrets.KEY_VAULT_URL }}" -kvc "${{ secrets.KEY_VAULT_CERTIFICATE }}" -kvi "${{ secrets.KEY_VAULT_CLIENT_ID }}" -kvs "${{ secrets.KEY_VAULT_SECRET }}" -kvt "${{ secrets.KEY_VAULT_TENANT }}" -tr http://timestamp.digicert.com -v "./installer/dist/amulet/amulet_debug.exe"
         makensis -DVERSION=${{ github.event.release.tag_name }} installer/windows.nsi
         ./azuresigntool.exe sign -kvu "${{ secrets.KEY_VAULT_URL }}" -kvc "${{ secrets.KEY_VAULT_CERTIFICATE }}" -kvi "${{ secrets.KEY_VAULT_CLIENT_ID }}" -kvs "${{ secrets.KEY_VAULT_SECRET }}" -kvt "${{ secrets.KEY_VAULT_TENANT }}" -tr http://timestamp.digicert.com -v "./installer/dist/Amulet-${{ github.event.release.tag_name }}-Windows-x64.exe"
+
+    - name: MacOS - Create DMG
+      if: runner.os == 'macOS'
+      run: |
+        brew install create-dmg
+        mkdir -p "installer/dist/dmg"
+        ditto "installer/dist/amulet.app" "installer/dist/dmg/amulet.app"
+        codesign --verify --deep --strict installer/dist/dmg/amulet.app
+        create-dmg \
+          --volname "Amulet-${{ github.event.release.tag_name }}" \
+          --volicon "installer/logo.icns" \
+          --window-pos 200 120 \
+          --window-size 600 300 \
+          --icon-size 100 \
+          --icon "amulet.app" 175 120 \
+          --hide-extension "amulet.app" \
+          --app-drop-link 425 120 \
+          "installer/dist/Amulet-${{ github.event.release.tag_name }}-macOS-${{ matrix.cfg.architecture }}.dmg" \
+          "installer/dist/dmg"
+
+    - name: MacOS - Notarise DMG
+      if: runner.os == 'macOS'
+      run: |
+        xcrun notarytool submit \
+          "installer/dist/Amulet-${{ github.event.release.tag_name }}-macOS-${{ matrix.cfg.architecture }}.dmg" \
+          --keychain-profile "notary-profile" \
+          --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+          --wait
+        xcrun stapler staple \
+          "installer/dist/Amulet-${{ github.event.release.tag_name }}-macOS-${{ matrix.cfg.architecture }}.dmg"
 
     - name: Linux - Package
       if: runner.os == 'Linux'
