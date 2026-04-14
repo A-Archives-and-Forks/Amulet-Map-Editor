@@ -6,16 +6,17 @@ on:
 
 jobs:
   deploy:
-    runs-on: ${{ matrix.cfg.os }}
-    defaults:
-      run:
-        shell: bash
-
     strategy:
       fail-fast: false
       matrix:
         cfg:
-        - {os: windows-2025, python-version: '3.11', architecture: x64}
+          - { os: windows-2025, python-version: '3.11', architecture: x64 }
+          - { os: windows-11-arm, python-version: '3.11', architecture: arm64 }
+
+    runs-on: ${{ matrix.cfg.os }}
+    defaults:
+      run:
+        shell: bash
 
     steps:
     - name: Clone
@@ -25,19 +26,26 @@ jobs:
       uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.cfg.python-version }}
+        architecture: ${{ matrix.cfg.architecture }}
 
-    - name: Setup cmake
-      uses: jwlawson/actions-setup-cmake@v2
+    - name: Setup MSVC
+      if: matrix.cfg.os == 'windows-11-arm'
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: arm64
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
         pip install twine pyinstaller~=6.18 build
 
-    - name: Setup
+    - name: Build Wheels
+      shell: pwsh
       run: |
-        export BDISTWHEELFREEZELIBS=true
+        $env:BDISTWHEELFREEZELIBS = "true"
         python -m build
+        
+    - name: Install Wheels
+      run: |
         python -m pip install dist/amulet_map_editor-*.whl --upgrade
 
     - name: PyInstaller build
@@ -51,10 +59,10 @@ jobs:
 
     - name: Windows - Sign and Create Installer
       run: |
-        curl -L -o azuresigntool.exe https://github.com/vcsjones/AzureSignTool/releases/download/v7.0.1/AzureSignTool-x64.exe
+        curl -L -o azuresigntool.exe https://github.com/vcsjones/AzureSignTool/releases/download/v7.0.1/AzureSignTool-${{ matrix.cfg.architecture }}.exe
         find ./installer/dist/amulet -type f \( -name "*.exe" -o -name "*.dll" -o -name "*.pyd" \) -exec ./azuresigntool.exe sign -kvu "${{ secrets.KEY_VAULT_URL }}" -kvc "${{ secrets.KEY_VAULT_CERTIFICATE }}" -kvi "${{ secrets.KEY_VAULT_CLIENT_ID }}" -kvs "${{ secrets.KEY_VAULT_SECRET }}" -kvt "${{ secrets.KEY_VAULT_TENANT }}" -tr http://timestamp.digicert.com -v "{}" \;
-        makensis -DVERSION=${{ github.event.release.tag_name }} installer/windows.nsi
-        ./azuresigntool.exe sign -kvu "${{ secrets.KEY_VAULT_URL }}" -kvc "${{ secrets.KEY_VAULT_CERTIFICATE }}" -kvi "${{ secrets.KEY_VAULT_CLIENT_ID }}" -kvs "${{ secrets.KEY_VAULT_SECRET }}" -kvt "${{ secrets.KEY_VAULT_TENANT }}" -tr http://timestamp.digicert.com -v "./installer/dist/Amulet-${{ github.event.release.tag_name }}-Windows-x64.exe"
+        makensis -DVERSION=${{ github.event.release.tag_name }} -DARCH=${{ matrix.cfg.architecture }} installer/windows.nsi
+        ./azuresigntool.exe sign -kvu "${{ secrets.KEY_VAULT_URL }}" -kvc "${{ secrets.KEY_VAULT_CERTIFICATE }}" -kvi "${{ secrets.KEY_VAULT_CLIENT_ID }}" -kvs "${{ secrets.KEY_VAULT_SECRET }}" -kvt "${{ secrets.KEY_VAULT_TENANT }}" -tr http://timestamp.digicert.com -v "./installer/dist/Amulet-${{ github.event.release.tag_name }}-Windows-${{ matrix.cfg.architecture }}.exe"
         rm -rf installer/dist/amulet
 
     - name: Publish to PyPi
