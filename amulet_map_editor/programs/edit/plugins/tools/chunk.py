@@ -228,6 +228,7 @@ class ChunkTool(wx.BoxSizer, DefaultBaseToolUI):
                 self.EndModal(wx.ID_NO)
 
         d = DeleteChunksDialog(self.canvas)
+        d.CentreOnScreen()
         log.debug(f"Showing DeleteChunksDialog at {d.GetRect()}")
         response = d.ShowModal()
         if response == wx.ID_YES:
@@ -303,6 +304,7 @@ class ChunkTool(wx.BoxSizer, DefaultBaseToolUI):
             self.canvas.run_operation(operation)
 
         with WorldSelectDialog(self.canvas, on_world_selected) as select_world:
+            select_world.CentreOnScreen()
             log.debug(f"Showing WorldSelectDialog at {select_world.GetRect()}")
             select_world.ShowModal()
 
