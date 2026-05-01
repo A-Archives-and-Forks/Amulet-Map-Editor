@@ -15,7 +15,6 @@ from amulet_map_editor.api.framework.pages import WorldPageUI
 from .pages import AmuletMainMenu, BasePageUI
 
 from amulet_map_editor.api import image
-from amulet_map_editor.api.wx.util.ui_preferences import preserve_ui_preferences
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +30,6 @@ CLOSEABLE_PAGE_TYPE = Union[WorldPageUI]
 wx.Image.SetDefaultLoadFlags(0)
 
 
-@preserve_ui_preferences
 class AmuletUI(wx.Frame):
     """This is the top level frame that Amulet exists within."""
 
@@ -48,7 +46,7 @@ class AmuletUI(wx.Frame):
             id=wx.ID_ANY,
             title=title,
             pos=wx.DefaultPosition,
-            size=wx.Size(1000, 600),
+            size=wx.Size(1000, 620),
             style=wx.CAPTION
             | wx.CLOSE_BOX
             | wx.MINIMIZE_BOX
@@ -58,7 +56,7 @@ class AmuletUI(wx.Frame):
             | wx.CLIP_CHILDREN
             | wx.RESIZE_BORDER,
         )
-        self.SetMinSize((570, 620))
+        self.SetMinSize(wx.Size(570, 620))
         icon = wx.Icon()
         icon.CopyFromBitmap(image.logo.amulet_logo.bitmap())
         self.SetIcon(icon)
